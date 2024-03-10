@@ -1,4 +1,4 @@
-package org.cockshott.interaction.containers;
+package org.cockshott.interaction;
 
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -36,7 +36,7 @@ public class PlayerInventoryListener implements Listener {
 
         InventoryAction action = event.getAction();
         Player player = (Player) event.getWhoClicked();
-        UUID playerId = player.getUniqueId();
+        String playerId = player.getName();
         Inventory clickedInventory = event.getClickedInventory();
         ItemStack cursor = event.getCursor();
         ItemStack currentItem = event.getCurrentItem();

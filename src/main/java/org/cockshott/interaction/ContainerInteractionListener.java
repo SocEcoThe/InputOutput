@@ -1,4 +1,4 @@
-package org.cockshott.interaction.containers;
+package org.cockshott.interaction;
 
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
