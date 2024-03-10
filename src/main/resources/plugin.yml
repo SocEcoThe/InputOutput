@@ -1,0 +1,7 @@
+name: InputOutput
+#main: org.xjcraft.blockFML.OnlineLoginPluginDemo
+main: org.cockshott.InputOutputPlugin
+version: 1.0
+author: EnriqueMark
+description: 计算投入产出
+
