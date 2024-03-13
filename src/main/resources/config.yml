@@ -1,5 +1,6 @@
 ﻿InputOutput:
 valid_blocks: #这是一个储存排除表，里面的内容是包含而不是等于，可以写全名也可以写一部分，按要求灵活设置
   - CHEST
-upload_interval: 30
-snapshot_interval: 60
+  - BARREL
+snapshot_interval: 30
+upload_interval: 60
