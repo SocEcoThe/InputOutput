@@ -1,0 +1,11 @@
+valid_blocks
+upload_interva
+snapshot_interval
+三个配置可以在游戏内通过命令行改
+valid_blocks是需要排除的储存容器，默认是箱子和木桶，箱子有特殊设置，往正面后者背面加一个牌子才是储存
+upload_interva是上传数据到数据库的间隔
+snapshot_interval是抓取玩家背包快照的间隔
+设置多长时间看服务器负载自行决定
+设置这些不需要重启，在游戏内通过命令行即可
+直接输入/updateconfig或/uc就能看到相关提示
+valid_blocks支持添加\删除单个或一次性添加多个，具体进游戏看提示，输错了会有纠正
