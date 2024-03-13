@@ -8,7 +8,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.concurrent.Callable;
 
 public class DatabaseManager {
     // 实现与数据库的交互，包括同步数据到数据库
@@ -47,6 +46,7 @@ public class DatabaseManager {
                 connection.setAutoCommit(false);
                 // 执行传入的操作
                 T result = operation.run(connection);
+                System.out.println("执行成功");
                 // 提交事务
                 connection.commit();
                 return result;

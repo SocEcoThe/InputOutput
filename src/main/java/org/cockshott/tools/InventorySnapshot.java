@@ -26,13 +26,12 @@ public class InventorySnapshot {
     }
 
     // 比较两个背包状态
-    public void compareSnapshots(Map<String, Integer> before, Map<String, Integer> after, Player player) {
+    public void compareSnapshots(Map<String, Integer> before, Map<String, Integer> after, Player player,Boolean isStore) {
         // 检查产出（在 after 中找 before 没有的或数量更多的物品）
         after.forEach((item, quantity) -> {
             int beforeQuantity = before.getOrDefault(item, 0);
             if (quantity > beforeQuantity) {
-                cacheManager.recordOutput(player.getName(),(quantity - beforeQuantity),item);
-                System.out.println(player.getName() + " 产出了: " + item + " x " + (quantity - beforeQuantity));
+                cacheManager.recordOutput(player.getName(),(quantity - beforeQuantity),item,isStore);
             }
         });
 
@@ -40,8 +39,7 @@ public class InventorySnapshot {
         before.forEach((item, quantity) -> {
             int afterQuantity = after.getOrDefault(item, 0);
             if (quantity > afterQuantity) {
-                cacheManager.recordInput(player.getName(),(quantity - afterQuantity),item);
-                System.out.println(player.getName() + " 投入了: " + item + " x " + (quantity - afterQuantity));
+                cacheManager.recordInput(player.getName(),(quantity - afterQuantity),item,isStore);
             }
         });
     }

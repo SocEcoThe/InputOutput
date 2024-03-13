@@ -11,10 +11,19 @@ public class ItemUtils {
         String str = item.toString();
         Pattern pattern = Pattern.compile("\\{([^ ]*?) x");
         Matcher matcher = pattern.matcher(str);
-        if (matcher.find()) {
-            return matcher.group(1); // 返回匹配到的物品类型字符串
+
+        if (!matcher.find()) return "Unknown"; // 如果没有匹配到，返回"Unknown"
+
+        String result = matcher.group(1);
+        if (result.equals("POTION")){
+            pattern = Pattern.compile("potion-type=(\\w+:\\w+)");
+            matcher = pattern.matcher(str);
+            if (matcher.find()){
+                return matcher.group(1);
+            }
         }
-        return "Unknown"; // 如果没有匹配到，返回"Unknown"
+
+        return result; // 返回匹配到的物品类型字符串
     }
 
     // 从ItemStack的toString结果中提取物品数量

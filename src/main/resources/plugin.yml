@@ -4,3 +4,14 @@ version: 1.0
 author: EnriqueMark
 description: 计算投入产出
 depend: [MultiCurrency]
+commands:
+  updateconfig:
+    description: Update configuration settings for the plugin.
+    usage: /updateconfig <setting> <add/remove/update> <value(s)>
+    aliases: [uc]
+    permission: myplugin.updateconfig
+
+permissions:
+  myplugin.updateconfig:
+    description: Allows the user to update plugin configuration settings.
+    default: op
