@@ -46,7 +46,6 @@ public class DatabaseManager {
                 connection.setAutoCommit(false);
                 // 执行传入的操作
                 T result = operation.run(connection);
-                System.out.println("执行成功");
                 // 提交事务
                 connection.commit();
                 return result;

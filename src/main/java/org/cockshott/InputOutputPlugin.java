@@ -68,15 +68,19 @@ public class InputOutputPlugin extends JavaPlugin implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         int snapshotInterval = getConfig().getInt("snapshot_interval", 60);
         long snapshotIntervalTicks = snapshotInterval * 20L; // 将秒转换为tick
+        Player player = event.getPlayer();
+        inventoryChangeListener.saveInteraction.put(player.getUniqueId(),false);
 
         BukkitTask task = new BukkitRunnable() {
             public void run() {
-                Player player = event.getPlayer();
                 if (!player.isOnline()) {
                     this.cancel(); // 如果玩家不在线，则取消任务
                     return;
                 }
-                if (inventoryChangeListener.saveInteraction) return;
+
+                // 储存容器打开时暂时中止
+                if (inventoryChangeListener.saveInteraction.get(player.getUniqueId())) return;
+
                 // 创建或更新玩家的背包快照
                 inventoryChangeListener.contrast(player);
             }
@@ -94,8 +98,10 @@ public class InputOutputPlugin extends JavaPlugin implements Listener {
         if (task != null) {
             task.cancel();
         }
-        // 检查一次玩家背包
+        // 最后检查玩家背包后清空快照和标记
         inventoryChangeListener.contrast(event.getPlayer());
+        inventoryChangeListener.removePlayerSnapshots(playerId);
+        inventoryChangeListener.removeSaveInteraction(playerId);
     }
 
     public void updateSnapshotInterval() {

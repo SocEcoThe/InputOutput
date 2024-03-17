@@ -1,5 +1,6 @@
 package org.cockshott.interaction;
 
+import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.event.EventHandler;
@@ -12,16 +13,13 @@ import org.cockshott.cache.CacheManager;
 import org.cockshott.tools.BlockTools;
 import org.cockshott.tools.InventorySnapshot;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class InventoryChangeListener implements Listener {
-    private final Map<Player, Map<String, Integer>> playerSnapshots = new HashMap<>();
+    private final Map<UUID, Map<String, Integer>> playerSnapshots = Collections.synchronizedMap(new HashMap<>());
     private final InventorySnapshot inventorySnapshot;
     public List<String> validBlocks;
-    public Boolean saveInteraction = false;
-    private Boolean isSign = false;
+    public final Map<UUID,Boolean> saveInteraction = Collections.synchronizedMap(new HashMap<>());
 
 
     public InventoryChangeListener(CacheManager cacheManager,List<String> validBlocks) {
@@ -34,34 +32,30 @@ public class InventoryChangeListener implements Listener {
         // 检查是否为右键点击
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
 
-        // 确认点击的是箱子
         Block clickedBlock = event.getClickedBlock();
         if (isNoValidBlock(clickedBlock,validBlocks)) return;
 
         Player player = event.getPlayer();
-        saveInteraction = true;
 
-        if (!clickedBlock.getType().name().toUpperCase().contains("CHEST")){
-            saveContrast(player,true);
-            return;
-        }
-
-        if (signCheck(clickedBlock)){
-            saveContrast(player,true);
-        }
+        checkSpecialStorage(clickedBlock,player,"CHEST",true);
     }
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
-        Block closeBlock = event.getInventory().getLocation().getBlock();
+        Block closeBlock;
+        Location closeBlockLocation = event.getInventory().getLocation();
         Player player = (Player) event.getPlayer();
 
-        if (isNoValidBlock(closeBlock,validBlocks)) return;
-        if (isSign) return;
+        if (closeBlockLocation != null){
+            closeBlock = closeBlockLocation.getBlock();
+        }else {
+            closeBlock = player.getTargetBlockExact(5);
+        }
 
-        saveContrast(player,false);
-        saveInteraction = false;
-        isSign = false;
+        if (isNoValidBlock(closeBlock,validBlocks)) return;
+
+        checkSpecialStorage(closeBlock,player,"CHEST",false);
+
     }
 
     public Boolean signCheck(Block block){
@@ -71,7 +65,6 @@ public class InventoryChangeListener implements Listener {
             Block relative = block.getRelative(face);
             // 判断是否为告示牌
             if (relative.getType().name().contains("SIGN")){
-                isSign = true;
                 return true;
             }
         }
@@ -88,28 +81,57 @@ public class InventoryChangeListener implements Listener {
         return validBlocks.stream().noneMatch(validBlockName -> blockName.contains(validBlockName.toUpperCase()));
     }
 
-    public void contrast(Player player){
-        if (playerSnapshots.containsKey(player)) {
+    private void checkSpecialStorage(Block block,Player player,String specialStorageInteract,Boolean isOpen){
+        boolean check = BlockTools.extractBlockType(block.toString()).toUpperCase().contains(specialStorageInteract);
+
+        if (check && !signCheck(block)) {
+            saveInteraction.put(player.getUniqueId(),false);
+            return;
+        }
+
+        saveInteraction.put(player.getUniqueId(),isOpen);
+        saveContrast(player);
+    }
+
+    public synchronized void contrast(Player player){
+        UUID playerID = player.getUniqueId();
+        if (!saveInteraction.containsKey(playerID)){
+            saveInteraction.put(playerID,false);
+        }
+
+        if (playerSnapshots.containsKey(playerID)) {
             // 比较之前和当前的背包状态
-            Map<String, Integer> beforeSnapshot = playerSnapshots.get(player);
+            Map<String, Integer> beforeSnapshot = playerSnapshots.get(playerID);
             Map<String, Integer> afterSnapshot = inventorySnapshot.takeSnapshot(player);
-            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,saveInteraction);
+            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,saveInteraction.get(playerID));
             // 更新快照以便下一次比较
-            playerSnapshots.put(player, afterSnapshot);
+            playerSnapshots.put(playerID, afterSnapshot);
         }else {
-            playerSnapshots.put(player,inventorySnapshot.takeSnapshot(player));
+            playerSnapshots.put(playerID,inventorySnapshot.takeSnapshot(player));
         }
     }
 
-    public void saveContrast(Player player,Boolean isOpen){
-        Map<String, Integer> beforeSnapshot = playerSnapshots.get(player);
+    public synchronized void saveContrast(Player player){
+        UUID playerID = player.getUniqueId();
+        Map<String, Integer> beforeSnapshot = playerSnapshots.get(playerID);
         Map<String, Integer> afterSnapshot = inventorySnapshot.takeSnapshot(player);
-        if (isOpen){
-            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,!saveInteraction);
+        Boolean saveCheck = saveInteraction.get(playerID);
+
+        if (saveCheck){
+            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,saveCheck);
         }else {
-            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,saveInteraction);
+            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,!saveCheck);
         }
-        playerSnapshots.put(player, afterSnapshot);
+        playerSnapshots.put(playerID, afterSnapshot);
     }
+
+    public void removePlayerSnapshots(UUID playerID){
+        playerSnapshots.remove(playerID);
+    }
+
+    public void removeSaveInteraction(UUID playerID){
+        playerSnapshots.remove(playerID);
+    }
+
 }
 
