@@ -107,7 +107,6 @@ public class InventoryChangeListener implements Listener {
             return true;
         }
         String blockName = BlockTools.extractBlockType(block.toString()).toUpperCase(); // 转换为大写以进行不区分大小写的比较
-        System.out.println(blockName);
         // 检查 validBlocks 列表中是否没有任何一个字符串包含在 blockName 中
         return validBlocks.stream().noneMatch(validBlockName -> blockName.contains(validBlockName.toUpperCase()));
     }
