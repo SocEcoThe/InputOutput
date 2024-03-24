@@ -1,6 +1,9 @@
 ﻿InputOutput:
-valid_blocks: #这是一个储存排除表，里面的内容是包含而不是等于，可以写全名也可以写一部分，按要求灵活设置
+valid_blocks: #这是一个储存排除表，里面的内容是包含而不是等于，可以写全名也可以写一部分，按要求灵活设置，不过要精确匹配就得多写点
   - CHEST
   - BARREL
+  - TFC_HICKORY
+  - OAK_BEDSIDE_TABLE
+  - TOOL_RACK
 snapshot_interval: 30
 upload_interval: 60

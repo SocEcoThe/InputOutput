@@ -21,10 +21,11 @@ import org.cockshott.interaction.InventoryChangeListener;
 public class InputOutputPlugin extends JavaPlugin implements Listener {
     private CacheManager cacheManager; // 用于管理数据缓存
     private DatabaseManager databaseManager;
-    private final List<ItemOperation> playerInteraction = Collections.synchronizedList(new ArrayList<>());
     private BukkitTask syncTask;
-    private final Map<UUID, BukkitTask> playerSnapshotTasks = new HashMap<>();
     private InventoryChangeListener inventoryChangeListener;
+    private final List<ItemOperation> playerInteraction = Collections.synchronizedList(new ArrayList<>());
+    private final Map<UUID, BukkitTask> playerSnapshotTasks = new HashMap<>();
+    private final Map<UUID, Long> joinTimes = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -40,7 +41,7 @@ public class InputOutputPlugin extends JavaPlugin implements Listener {
         databaseManager.initialization();
 
         List<String> validBlocks = getConfig().getStringList("valid_blocks");
-        this.inventoryChangeListener = new InventoryChangeListener(cacheManager,validBlocks);
+        this.inventoryChangeListener = new InventoryChangeListener(cacheManager,validBlocks,this);
 
         // 注册事件监听器
         getServer().getPluginManager().registerEvents(inventoryChangeListener, this);
@@ -66,27 +67,11 @@ public class InputOutputPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        int snapshotInterval = getConfig().getInt("snapshot_interval", 60);
-        long snapshotIntervalTicks = snapshotInterval * 20L; // 将秒转换为tick
         Player player = event.getPlayer();
-        inventoryChangeListener.saveInteraction.put(player.getUniqueId(),false);
-
-        BukkitTask task = new BukkitRunnable() {
-            public void run() {
-                if (!player.isOnline()) {
-                    this.cancel(); // 如果玩家不在线，则取消任务
-                    return;
-                }
-
-                // 储存容器打开时暂时中止
-                if (inventoryChangeListener.saveInteraction.get(player.getUniqueId())) return;
-
-                // 创建或更新玩家的背包快照
-                inventoryChangeListener.contrast(player);
-            }
-        }.runTaskTimer(this, 0L, snapshotIntervalTicks);
-
-        playerSnapshotTasks.put(event.getPlayer().getUniqueId(), task); // 跟踪任务
+        updateSnapshot(player);
+        UUID playerId = player.getUniqueId();
+        joinTimes.put(playerId, System.currentTimeMillis() / 1000); // 记录上线时间
+        databaseManager.recordPlayerJoin(playerId, player.getName()); // 记录玩家加入信息
     }
 
 
@@ -102,6 +87,39 @@ public class InputOutputPlugin extends JavaPlugin implements Listener {
         inventoryChangeListener.contrast(event.getPlayer());
         inventoryChangeListener.removePlayerSnapshots(playerId);
         inventoryChangeListener.removeSaveInteraction(playerId);
+        // 更新在线时间
+        long joinTime = joinTimes.getOrDefault(playerId, System.currentTimeMillis() / 1000);
+        long onlineTime = System.currentTimeMillis() / 1000 - joinTime; // 计算在线时长
+        onlineTime = Math.round(onlineTime);
+        databaseManager.recordPlayerQuit(playerId, onlineTime); // 记录玩家退出信息
+        joinTimes.remove(playerId); // 清理记录
+    }
+
+    public void updateSnapshot(Player player){
+        int snapshotInterval = getConfig().getInt("snapshot_interval", 60);
+        long snapshotIntervalTicks = snapshotInterval * 20L; // 将秒转换为tick
+        UUID playerID = player.getUniqueId();
+        inventoryChangeListener.saveInteraction.put(playerID,false);
+        inventoryChangeListener.hangingInteraction.put(playerID,false);
+
+        BukkitTask task = new BukkitRunnable() {
+            public void run() {
+                if (!player.isOnline()) {
+                    this.cancel(); // 如果玩家不在线，则取消任务
+                    return;
+                }
+
+                // 进行储存操作时暂时中止
+                boolean save = inventoryChangeListener.saveInteraction.get(playerID) ||
+                        inventoryChangeListener.hangingInteraction.get(playerID);
+                if (save) return;
+
+                // 创建或更新玩家的背包快照
+                inventoryChangeListener.contrast(player);
+            }
+        }.runTaskTimer(this, 0L, snapshotIntervalTicks);
+
+        playerSnapshotTasks.put(playerID, task); // 跟踪任务
     }
 
     public void updateSnapshotInterval() {
@@ -109,10 +127,8 @@ public class InputOutputPlugin extends JavaPlugin implements Listener {
         playerSnapshotTasks.values().forEach(BukkitTask::cancel);
         playerSnapshotTasks.clear();
 
-        Bukkit.getOnlinePlayers().forEach(player -> {
-            // 对于每个在线玩家，重新启动快照更新任务
-            onPlayerJoin(new PlayerJoinEvent(player, null));
-        });
+        // 对于每个在线玩家，重新启动快照更新任务
+        Bukkit.getOnlinePlayers().forEach(this::updateSnapshot);
     }
 
 

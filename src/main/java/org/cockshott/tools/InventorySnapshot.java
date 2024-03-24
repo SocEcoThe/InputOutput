@@ -31,7 +31,7 @@ public class InventorySnapshot {
         after.forEach((item, quantity) -> {
             int beforeQuantity = before.getOrDefault(item, 0);
             if (quantity > beforeQuantity) {
-                cacheManager.recordOutput(player.getName(),(quantity - beforeQuantity),item,isStore);
+                cacheManager.recordOutput(player,(quantity - beforeQuantity),item,isStore);
             }
         });
 
@@ -39,7 +39,7 @@ public class InventorySnapshot {
         before.forEach((item, quantity) -> {
             int afterQuantity = after.getOrDefault(item, 0);
             if (quantity > afterQuantity) {
-                cacheManager.recordInput(player.getName(),(quantity - afterQuantity),item,isStore);
+                cacheManager.recordInput(player,(quantity - afterQuantity),item,isStore);
             }
         });
     }

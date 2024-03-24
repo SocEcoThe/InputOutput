@@ -1,5 +1,7 @@
 package org.cockshott.cache;
 
+import org.bukkit.entity.Player;
+
 import java.util.*;
 
 public class CacheManager {
@@ -11,20 +13,20 @@ public class CacheManager {
     }
 
     // 记录投入操作
-    public synchronized void recordInput(String playerName, int amount,String itemName,Boolean isStore) {
-        if (!isStore){
-            operations.add(new ItemOperation(playerName,"input",itemName,amount));
+    public synchronized void recordInput(Player player, int amount, String itemName, Boolean isStore) {
+        if (isStore){
+            operations.add(new ItemOperation(player.getUniqueId(), player.getName(), "storeInput",itemName,amount));
         }else {
-            operations.add(new ItemOperation(playerName,"storeInput",itemName,amount));
+            operations.add(new ItemOperation(player.getUniqueId(), player.getName(),"input",itemName,amount));
         }
     }
 
     // 记录产出操作
-    public synchronized void recordOutput(String playerName, int amount,String itemName,Boolean isStore) {
-        if (!isStore){
-            operations.add(new ItemOperation(playerName,"output",itemName,amount));
+    public synchronized void recordOutput(Player player, int amount,String itemName,Boolean isStore) {
+        if (isStore){
+            operations.add(new ItemOperation(player.getUniqueId(), player.getName(),"storeOutput",itemName,amount));
         }else {
-            operations.add(new ItemOperation(playerName,"storeOutput",itemName,amount));
+            operations.add(new ItemOperation(player.getUniqueId(), player.getName(),"output",itemName,amount));
         }
     }
 }

@@ -8,7 +8,11 @@ import org.bukkit.event.Listener;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.cockshott.InputOutputPlugin;
 import org.cockshott.cache.CacheManager;
 import org.cockshott.tools.BlockTools;
 import org.cockshott.tools.InventorySnapshot;
@@ -18,92 +22,104 @@ import java.util.*;
 public class InventoryChangeListener implements Listener {
     private final Map<UUID, Map<String, Integer>> playerSnapshots = Collections.synchronizedMap(new HashMap<>());
     private final InventorySnapshot inventorySnapshot;
+    private final InputOutputPlugin plugin;
     public List<String> validBlocks;
-    public final Map<UUID,Boolean> saveInteraction = Collections.synchronizedMap(new HashMap<>());
+    public final Map<UUID,Boolean> saveInteraction = new HashMap<>();
+    public final Map<UUID,Boolean> hangingInteraction = new HashMap<>();
 
 
-    public InventoryChangeListener(CacheManager cacheManager,List<String> validBlocks) {
+    public InventoryChangeListener(CacheManager cacheManager,List<String> validBlocks,InputOutputPlugin plugin) {
         this.inventorySnapshot = new InventorySnapshot(cacheManager);
         this.validBlocks = validBlocks;
+        this.plugin = plugin;
     }
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
-        // 检查是否为右键点击
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        Action action = event.getAction();
+        boolean isSneaking = event.getPlayer().isSneaking();
+        boolean isLeftClickBlock = action == Action.LEFT_CLICK_BLOCK;
+        boolean isRightClickBlock = event.getAction() == Action.RIGHT_CLICK_BLOCK;
 
+        // 当不是右键和按住SHIFT+左键时退出
+        if (!isRightClickBlock && !(isSneaking && isLeftClickBlock)) return;
+
+        //当不在储存设置表中时退出
         Block clickedBlock = event.getClickedBlock();
-        if (isNoValidBlock(clickedBlock,validBlocks)) return;
+        if (isNoValidBlock(clickedBlock)) return;
 
         Player player = event.getPlayer();
+        UUID playerID = player.getUniqueId();
+        hangingInteraction.put(playerID,true);
 
-        checkSpecialStorage(clickedBlock,player,"CHEST",true);
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                //如果容器未打开
+                if(!saveInteraction.get(playerID)) {
+                    saveContrast(player,true);
+                }
+                hangingInteraction.put(playerID,false);
+            }
+        }.runTaskLater(plugin, 5L);
+    }
+
+    @EventHandler
+    public void onInventoryOpen(InventoryOpenEvent event) {
+        Inventory openBlockInventory = event.getInventory();
+        Player player = (Player) event.getPlayer();
+        Block openBlock = getBlock(openBlockInventory,player);
+
+        if (isNoValidBlock(openBlock)) return;
+
+        saveInteraction.put(player.getUniqueId(),true);
+        saveContrast(player,false);
     }
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
-        Block closeBlock;
-        Location closeBlockLocation = event.getInventory().getLocation();
+        Inventory closeBlockInventory = event.getInventory();
         Player player = (Player) event.getPlayer();
+        Block closeBlock = getBlock(closeBlockInventory,player);
 
-        if (closeBlockLocation != null){
-            closeBlock = closeBlockLocation.getBlock();
+        if (isNoValidBlock(closeBlock)) return;
+
+        saveContrast(player,true);
+        saveInteraction.put(player.getUniqueId(),false);
+
+    }
+
+    public Block getBlock(Inventory inventory,Player player){
+        Block block;
+        Location blockLocation = inventory.getLocation();
+
+        if (blockLocation != null){
+            block = blockLocation.getBlock();
         }else {
-            closeBlock = player.getTargetBlockExact(5);
+            block = player.getTargetBlockExact(5);
         }
 
-        if (isNoValidBlock(closeBlock,validBlocks)) return;
-
-        checkSpecialStorage(closeBlock,player,"CHEST",false);
-
+        return block;
     }
 
-    public Boolean signCheck(Block block){
-        for (BlockFace face : BlockFace.values()) {
-            if (!(face == BlockFace.NORTH || face == BlockFace.SOUTH)) continue;
-
-            Block relative = block.getRelative(face);
-            // 判断是否为告示牌
-            if (relative.getType().name().contains("SIGN")){
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean isNoValidBlock(Block block, List<String> validBlocks) {
+    private boolean isNoValidBlock(Block block) {
         if (block == null) {
             return true;
         }
         String blockName = BlockTools.extractBlockType(block.toString()).toUpperCase(); // 转换为大写以进行不区分大小写的比较
-
+        System.out.println(blockName);
         // 检查 validBlocks 列表中是否没有任何一个字符串包含在 blockName 中
         return validBlocks.stream().noneMatch(validBlockName -> blockName.contains(validBlockName.toUpperCase()));
     }
 
-    private void checkSpecialStorage(Block block,Player player,String specialStorageInteract,Boolean isOpen){
-        boolean check = BlockTools.extractBlockType(block.toString()).toUpperCase().contains(specialStorageInteract);
-
-        if (check && !signCheck(block)) {
-            saveInteraction.put(player.getUniqueId(),false);
-            return;
-        }
-
-        saveInteraction.put(player.getUniqueId(),isOpen);
-        saveContrast(player);
-    }
-
     public synchronized void contrast(Player player){
         UUID playerID = player.getUniqueId();
-        if (!saveInteraction.containsKey(playerID)){
-            saveInteraction.put(playerID,false);
-        }
 
         if (playerSnapshots.containsKey(playerID)) {
             // 比较之前和当前的背包状态
             Map<String, Integer> beforeSnapshot = playerSnapshots.get(playerID);
             Map<String, Integer> afterSnapshot = inventorySnapshot.takeSnapshot(player);
-            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,saveInteraction.get(playerID));
+            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,false);
             // 更新快照以便下一次比较
             playerSnapshots.put(playerID, afterSnapshot);
         }else {
@@ -111,17 +127,12 @@ public class InventoryChangeListener implements Listener {
         }
     }
 
-    public synchronized void saveContrast(Player player){
+    public synchronized void saveContrast(Player player,Boolean saveCheck){
         UUID playerID = player.getUniqueId();
         Map<String, Integer> beforeSnapshot = playerSnapshots.get(playerID);
         Map<String, Integer> afterSnapshot = inventorySnapshot.takeSnapshot(player);
-        Boolean saveCheck = saveInteraction.get(playerID);
 
-        if (saveCheck){
-            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,saveCheck);
-        }else {
-            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,!saveCheck);
-        }
+        inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,saveCheck);
         playerSnapshots.put(playerID, afterSnapshot);
     }
 
