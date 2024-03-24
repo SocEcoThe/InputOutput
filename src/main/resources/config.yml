@@ -5,5 +5,6 @@ valid_blocks: #这是一个储存排除表，里面的内容是包含而不是�
   - TFC_HICKORY
   - OAK_BEDSIDE_TABLE
   - TOOL_RACK
+  - BEDSIDE_TABLE
 snapshot_interval: 30
 upload_interval: 60
