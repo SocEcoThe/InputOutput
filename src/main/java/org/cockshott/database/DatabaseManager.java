@@ -25,8 +25,9 @@ public class DatabaseManager {
                             "`player_uuid` VARCHAR(36) NOT NULL,"+
                             "`player_name` VARCHAR(255) NOT NULL,"+
                             "`online_time` INT NOT NULL DEFAULT 0,"+
+                            "`action_date` DATE NOT NULL DEFAULT (CURDATE()),"+
                             "PRIMARY KEY (`id`),"+
-                            "UNIQUE KEY `unique_player_uuid` (`player_uuid`),"+
+                            "UNIQUE KEY `unique_player_date` (`player_uuid`, `action_date`),"+
                             "INDEX `player_uuid_index` (`player_uuid`)"+
                             ") ENGINE=INNODB DEFAULT CHARSET=utf8 COMMENT='玩家信息表';",
                     "CREATE TABLE IF NOT EXISTS `input_output` (" +
@@ -36,9 +37,9 @@ public class DatabaseManager {
                             "`action` VARCHAR(255) NOT NULL," +
                             "`item_name` VARCHAR(255) NOT NULL," +
                             "`quantity` INT NOT NULL," +
-                            "`action_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"+
+                            "`action_time` DATE NOT NULL DEFAULT (CURDATE()),"+
                             "PRIMARY KEY (`id`)," +
-                            "UNIQUE KEY `unique_player_item_action` (`player_uuid`, `action`, `item_name`, `action_time`)," +
+                            "UNIQUE KEY `unique_player_item_action` (`player_uuid`, `action`, `item_name` ,`action_time`)," +
                             "INDEX `player_uuid_index` (`player_uuid`),"+
                             "FOREIGN KEY (`player_uuid`) REFERENCES `user_table`(`player_uuid`)"+
                             ") ENGINE=INNODB DEFAULT CHARSET=utf8 COMMENT='玩家操作记录表';"
@@ -102,12 +103,12 @@ public class DatabaseManager {
     public void recordPlayerJoin(UUID playerId, String playerName) {
         execute(connection -> {
             // 检查玩家是否已存在于数据库
-            String checkQuery = "SELECT COUNT(*) FROM user_table WHERE player_uuid = ?";
+            String checkQuery = "SELECT COUNT(*) FROM user_table WHERE player_uuid = ? AND DATE(action_date) = CURDATE()";
             try (PreparedStatement checkStmt = connection.prepareStatement(checkQuery)) {
                 checkStmt.setString(1, playerId.toString());
                 ResultSet resultSet = checkStmt.executeQuery();
-                if (resultSet.next() && resultSet.getInt(1) == 0) {
-                    // 玩家不存在，插入新记录
+                if (!(resultSet.next() && resultSet.getInt(1) > 0)) {
+                    // 玩家当日记录不存在，插入新记录
                     String insertQuery = "INSERT INTO user_table (player_uuid, player_name, online_time) VALUES (?, ?, 0)";
                     try (PreparedStatement insertStmt = connection.prepareStatement(insertQuery)) {
                         insertStmt.setString(1, playerId.toString());
@@ -123,7 +124,7 @@ public class DatabaseManager {
     public void recordPlayerQuit(UUID playerId, long onlineTime) {
         execute(connection -> {
             // 更新玩家在线时间
-            String updateQuery = "UPDATE user_table SET online_time = online_time + ? WHERE player_uuid = ?";
+            String updateQuery = "UPDATE user_table SET online_time = online_time + ? WHERE player_uuid = ? AND DATE(action_date) = CURDATE()";
             try (PreparedStatement updateStmt = connection.prepareStatement(updateQuery)) {
                 updateStmt.setLong(1, onlineTime);
                 updateStmt.setString(2, playerId.toString());

@@ -131,6 +131,10 @@ public class InventoryChangeListener implements Listener {
         Map<String, Integer> beforeSnapshot = playerSnapshots.get(playerID);
         Map<String, Integer> afterSnapshot = inventorySnapshot.takeSnapshot(player);
 
+        if (beforeSnapshot == null){
+            beforeSnapshot = afterSnapshot;
+        }
+
         inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,saveCheck);
         playerSnapshots.put(playerID, afterSnapshot);
     }
