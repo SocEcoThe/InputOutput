@@ -4,10 +4,8 @@ import com.zjyl1994.minecraftplugin.multicurrency.MultiCurrencyPlugin;
 import org.cockshott.cache.ItemOperation;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -100,12 +98,13 @@ public class DatabaseManager {
         });
     }
 
-    public void recordPlayerJoin(UUID playerId, String playerName) {
+    public void recordPlayerJoin(UUID playerId, String playerName, Date date) {
         execute(connection -> {
             // 检查玩家是否已存在于数据库
-            String checkQuery = "SELECT COUNT(*) FROM user_table WHERE player_uuid = ? AND DATE(action_date) = CURDATE()";
+            String checkQuery = "SELECT COUNT(*) FROM user_table WHERE player_uuid = ? AND DATE(action_date) = ?";
             try (PreparedStatement checkStmt = connection.prepareStatement(checkQuery)) {
                 checkStmt.setString(1, playerId.toString());
+                checkStmt.setDate(2,date);
                 ResultSet resultSet = checkStmt.executeQuery();
                 if (!(resultSet.next() && resultSet.getInt(1) > 0)) {
                     // 玩家当日记录不存在，插入新记录
@@ -121,13 +120,14 @@ public class DatabaseManager {
         });
     }
 
-    public void recordPlayerQuit(UUID playerId, long onlineTime) {
+    public void recordPlayerQuit(UUID playerId, long onlineTime, Date date) {
         execute(connection -> {
             // 更新玩家在线时间
-            String updateQuery = "UPDATE user_table SET online_time = online_time + ? WHERE player_uuid = ? AND DATE(action_date) = CURDATE()";
+            String updateQuery = "UPDATE user_table SET online_time = online_time + ? WHERE player_uuid = ? AND DATE(action_date) = ?";
             try (PreparedStatement updateStmt = connection.prepareStatement(updateQuery)) {
                 updateStmt.setLong(1, onlineTime);
                 updateStmt.setString(2, playerId.toString());
+                updateStmt.setDate(3, date);
                 updateStmt.executeUpdate();
             }
             return null;

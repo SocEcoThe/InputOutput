@@ -1,8 +1,11 @@
 package org.cockshott;
 
+import java.sql.Date;
+import java.time.LocalDate;
 import java.util.*;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -15,6 +18,7 @@ import org.cockshott.Command.UpdateConfigCommand;
 import org.cockshott.Command.UpdateConfigTabCompleter;
 import org.cockshott.cache.CacheManager;
 import org.cockshott.cache.ItemOperation;
+import org.cockshott.cache.PlayerStats;
 import org.cockshott.database.DatabaseManager;
 import org.cockshott.interaction.InventoryChangeListener;
 
@@ -25,7 +29,8 @@ public class InputOutputPlugin extends JavaPlugin implements Listener {
     private InventoryChangeListener inventoryChangeListener;
     private final List<ItemOperation> playerInteraction = Collections.synchronizedList(new ArrayList<>());
     private final Map<UUID, BukkitTask> playerSnapshotTasks = new HashMap<>();
-    private final Map<UUID, Long> joinTimes = new HashMap<>();
+    private final Map<UUID, BukkitTask> playerTimeUpdateTasks = new HashMap<>();
+    private final Map<UUID, PlayerStats> joinTimes = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -70,29 +75,51 @@ public class InputOutputPlugin extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         updateSnapshot(player);
         UUID playerId = player.getUniqueId();
-        joinTimes.put(playerId, System.currentTimeMillis() / 1000); // 记录上线时间
-        databaseManager.recordPlayerJoin(playerId, player.getName()); // 记录玩家加入信息
+        PlayerStats stats = new PlayerStats();
+        joinTimes.put(playerId, stats); // 记录上线时间
+        databaseManager.recordPlayerJoin(playerId, player.getName(),stats.getJoinDate()); // 记录玩家加入信息
+        BukkitTask task = new BukkitRunnable(){
+            @Override
+            public void run() {
+                updatePlayerOnlineTime(player,false);
+            }
+        }.runTaskTimer(this,300*20L,300*20L);
+        playerTimeUpdateTasks.put(playerId,task);
     }
 
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         // 取消对应玩家的定时任务
-        UUID playerId = event.getPlayer().getUniqueId();
-        BukkitTask task = playerSnapshotTasks.remove(playerId);
-        if (task != null) {
-            task.cancel();
-        }
+        Player player = event.getPlayer();
+        UUID playerId = player.getUniqueId();
+        cancelTaskFromMap(playerId,playerSnapshotTasks);
+        cancelTaskFromMap(playerId,playerTimeUpdateTasks);
         // 最后检查玩家背包后清空快照和标记
         inventoryChangeListener.contrast(event.getPlayer());
         inventoryChangeListener.removePlayerSnapshots(playerId);
         inventoryChangeListener.removeSaveInteraction(playerId);
         // 更新在线时间
-        long joinTime = joinTimes.getOrDefault(playerId, System.currentTimeMillis() / 1000);
-        long onlineTime = System.currentTimeMillis() / 1000 - joinTime; // 计算在线时长
+        updatePlayerOnlineTime(player,true);
+        joinTimes.remove(playerId);
+    }
+
+    private void cancelTaskFromMap(UUID playerId, Map<UUID,BukkitTask> map){
+        BukkitTask task = map.remove(playerId);
+        if (task != null) task.cancel();
+    }
+
+    public  void updatePlayerOnlineTime(Player player,boolean quit){
+        UUID playerId = player.getUniqueId();
+        PlayerStats stats = joinTimes.getOrDefault(playerId,new PlayerStats());
+        long onlineTime = System.currentTimeMillis() / 1000 - stats.getOnlineTime(); // 计算在线时长
         onlineTime = Math.round(onlineTime);
-        databaseManager.recordPlayerQuit(playerId, onlineTime); // 记录玩家退出信息
-        joinTimes.remove(playerId); // 清理记录
+        databaseManager.recordPlayerQuit(playerId, onlineTime,stats.getJoinDate());
+        Date dateNow = Date.valueOf(LocalDate.now());
+        if (!dateNow.equals(stats.getJoinDate()) && !quit){
+            joinTimes.put(playerId,new PlayerStats());
+            databaseManager.recordPlayerJoin(playerId, player.getName(),dateNow);
+        }
     }
 
     public void updateSnapshot(Player player){

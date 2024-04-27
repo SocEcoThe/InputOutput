@@ -7,6 +7,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -21,6 +22,7 @@ import java.util.*;
 
 public class InventoryChangeListener implements Listener {
     private final Map<UUID, Map<String, Integer>> playerSnapshots = Collections.synchronizedMap(new HashMap<>());
+    private final Map<UUID, Map<String, Integer>> playerPlace = Collections.synchronizedMap(new HashMap<>());
     private final InventorySnapshot inventorySnapshot;
     private final InputOutputPlugin plugin;
     public List<String> validBlocks;
@@ -89,6 +91,18 @@ public class InventoryChangeListener implements Listener {
 
     }
 
+    @EventHandler
+    public void onBlockPlace(BlockPlaceEvent event) {
+        // 获取事件的相关信息
+        Block block = event.getBlockPlaced();
+        UUID playerId = event.getPlayer().getUniqueId();
+        String blockName = BlockTools.extractBlockType(block.toString());
+
+        Map <String, Integer> blockCounts = playerPlace.getOrDefault(playerId, new HashMap<>());
+        blockCounts.put(blockName, blockCounts.getOrDefault(blockName, 0) + 1);
+        playerPlace.put(playerId, blockCounts);
+    }
+
     public Block getBlock(Inventory inventory,Player player){
         Block block;
         Location blockLocation = inventory.getLocation();
@@ -118,7 +132,7 @@ public class InventoryChangeListener implements Listener {
             // 比较之前和当前的背包状态
             Map<String, Integer> beforeSnapshot = playerSnapshots.get(playerID);
             Map<String, Integer> afterSnapshot = inventorySnapshot.takeSnapshot(player);
-            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,false);
+            inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot,playerPlace, player,false);
             // 更新快照以便下一次比较
             playerSnapshots.put(playerID, afterSnapshot);
         }else {
@@ -135,7 +149,7 @@ public class InventoryChangeListener implements Listener {
             beforeSnapshot = afterSnapshot;
         }
 
-        inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot, player,saveCheck);
+        inventorySnapshot.compareSnapshots(beforeSnapshot, afterSnapshot,playerPlace, player,saveCheck);
         playerSnapshots.put(playerID, afterSnapshot);
     }
 
