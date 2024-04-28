@@ -7,14 +7,16 @@ import java.sql.Date;
 import java.time.LocalDate;
 
 @Getter
+@Setter
 public class PlayerStats {
-    private final Long onlineTime; // 玩家在线时间
-    private final Date joinDate; // 玩家的登录日期
+    private long lastUpdateTime;
+    private Date joinDate;
+    private long onlineTime;
 
-    // 构造函数，初始化时没有参数，设置默认值
     public PlayerStats() {
-        this.onlineTime = System.currentTimeMillis() / 1000; // 记录初始在线时间
-        this.joinDate = Date.valueOf(LocalDate.now()); // 记录初始在线日期
+        this.joinDate = Date.valueOf(LocalDate.now());
+        this.lastUpdateTime = System.currentTimeMillis() / 1000; // 初始化为当前时间
+        this.onlineTime = 0; // 初始化在线时间为0
     }
 }
 

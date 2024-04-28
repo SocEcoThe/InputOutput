@@ -109,16 +109,26 @@ public class InputOutputPlugin extends JavaPlugin implements Listener {
         if (task != null) task.cancel();
     }
 
-    public  void updatePlayerOnlineTime(Player player,boolean quit){
+    public void updatePlayerOnlineTime(Player player, boolean quit) {
         UUID playerId = player.getUniqueId();
-        PlayerStats stats = joinTimes.getOrDefault(playerId,new PlayerStats());
-        long onlineTime = System.currentTimeMillis() / 1000 - stats.getOnlineTime(); // 计算在线时长
-        onlineTime = Math.round(onlineTime);
-        databaseManager.recordPlayerQuit(playerId, onlineTime,stats.getJoinDate());
+        PlayerStats stats = joinTimes.getOrDefault(playerId, new PlayerStats());
+        long currentTime = System.currentTimeMillis() / 1000;
+        long timeDiff = currentTime - stats.getLastUpdateTime(); // 计算自上次更新以来的时间差
+        stats.setOnlineTime(timeDiff); // 累加时间差到总在线时长
+
+        // 更新数据库记录
+        databaseManager.recordPlayerQuit(playerId, stats.getOnlineTime(), stats.getJoinDate());
+
+        // 检查是否需要重置状态（例如日期变更或退出时）
         Date dateNow = Date.valueOf(LocalDate.now());
-        if (!dateNow.equals(stats.getJoinDate()) && !quit){
-            joinTimes.put(playerId,new PlayerStats());
-            databaseManager.recordPlayerJoin(playerId, player.getName(),dateNow);
+        if (!dateNow.equals(stats.getJoinDate()) && !quit) {
+            stats = new PlayerStats();
+            joinTimes.put(playerId, stats);
+            databaseManager.recordPlayerJoin(playerId, player.getName(), dateNow);
+        } else {
+            // 更新最后更新时间
+            stats.setLastUpdateTime(currentTime);
+            joinTimes.put(playerId, stats);
         }
     }
 
